@@ -4,6 +4,7 @@ import time
 import requests
 from dotenv import load_dotenv
 from collections import defaultdict
+from datetime import datetime
 
 # Load and validate environment variables
 load_dotenv()
@@ -20,8 +21,7 @@ required_vars = {
 
 missing = [key for key, value in required_vars.items() if not value]
 if missing:
-    print(f"Missing required environment variables: {', '.join(missing)}")
-    sys.exit(1)
+    raise EnvironmentError(f"Missing required environment variables: {', '.join(missing)}")
 
 # Constants
 HELIUS_ENDPOINT_TEMPLATE = "https://api.helius.xyz/v0/addresses/{wallet}/transactions?api-key={api_key}"
@@ -36,6 +36,7 @@ WALLETS = [
 
 seen_transactions = set()
 token_to_wallets = defaultdict(set)
+token_sell_alerts = defaultdict(set)
 IGNORED_TOKENS = {"So11111111111111111111111111111111111111112"}
 
 def fetch_transactions(wallet):
@@ -46,9 +47,12 @@ def fetch_transactions(wallet):
         return []
     return response.json()
 
+def extract_token_transfers(tx):
+    return tx.get("tokenTransfers", [])
+
 def extract_token_mints(tx):
     try:
-        token_transfers = tx.get("tokenTransfers", [])
+        token_transfers = extract_token_transfers(tx)
         if not token_transfers:
             print(f"❌ No tokenTransfers found in tx: {tx.get('signature')}")
         mints = [t.get("mint") for t in token_transfers if t.get("tokenStandard") == "Fungible"]
@@ -70,9 +74,17 @@ def send_telegram_alert(message):
     response = requests.post(url, data=data)
     if response.status_code != 200:
         print(f"[!] Telegram send error: {response.status_code} - {response.text}")
+    else:
+        print("Telegram alert sent.")
+
+def detect_sell(tx, mint, wallet):
+    for transfer in extract_token_transfers(tx):
+        if transfer.get("mint") == mint and transfer.get("fromUserAccount") == wallet:
+            return True
+    return False
 
 def main():
-    print("👀 Starting wallet monitoring...")
+    print("Starting wallet monitoring...")
     while True:
         for wallet in WALLETS:
             transactions = fetch_transactions(wallet)
@@ -81,24 +93,38 @@ def main():
                 if sig in seen_transactions:
                     continue
                 seen_transactions.add(sig)
+
                 mints = extract_token_mints(tx)
                 for mint in mints:
                     if mint in IGNORED_TOKENS:
                         continue
-                    if mint not in token_to_wallets:
-                        token_to_wallets[mint] = set()
+
                     token_to_wallets[mint].add(wallet)
-                    if len(token_to_wallets[mint]) >= 2:
+
+                    # Buy alert
+                    if len(token_to_wallets[mint]) == 2:
                         dex_url = f"https://dexscreener.com/solana/{mint}"
                         msg = (
-                            f"🚨 *Token Alert!*\n"
+                            f"\U0001F6A8 *Token Alert!*\n"
                             f"A watched wallet group just bought:\n\n"
                             f"🔹 Token: `{mint}`\n\n"
-                            f"🔎 View on Dexscreener: {dex_url}\n"
-                            f"🛒 [Buy with BonkBot](https://t.me/furiosa_bonkbot?start=ref_mqbn6_ca_{mint}) | "
-                            f"[Buy with Trojan Bot](https://t.me/solana_trojanbot?start=buy_{mint})"
+                            f"🔎 [View on Dexscreener]({dex_url})\n"
+                            f"[🛒 Buy with BonkBot](https://t.me/furiosa_bonkbot?start=ref_mqbn6_ca_{mint}) | "
+                            f"[🛒 Trojan Bot](https://t.me/solana_trojanbot?start=buy_{mint})"
                         )
                         send_telegram_alert(msg)
+
+                    # Sell alert
+                    if detect_sell(tx, mint, wallet):
+                        token_sell_alerts[mint].add(wallet)
+                        if len(token_sell_alerts[mint]) == 2:
+                            msg = (
+                                f"\U0001F4C9 *Sell Alert!*\n"
+                                f"Two wallets have sold token: `{mint}`\n"
+                                f"🔎 [View on Dexscreener](https://dexscreener.com/solana/{mint})"
+                            )
+                            send_telegram_alert(msg)
+
         time.sleep(15)
 
 if __name__ == "__main__":
