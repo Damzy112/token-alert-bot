@@ -24,45 +24,50 @@ if missing:
     raise EnvironmentError(f"Missing required environment variables: {', '.join(missing)}")
 
 # Constants
-HELIUS_ENDPOINT_TEMPLATE = "https://api.helius.xyz/v0/addresses/{wallet}/transactions?api-key={api_key}"
+HELIUS_ENDPOINT = f"https://api.helius.xyz/v0/transactions?api-key={HELIUS_API_KEY}"
 
-# Walletts to monitor
+# Wallets to monitor
 WALLETS = [
     "AjBVnBJzDnsjHjeLTLziHUonvBohDHpjrdPUuW6MVmS2",
     "dATMod1UTXYzvaXji4mBsvXTeAUAC73TNJQAejKS54X",
     "86AEJExyjeNNgcp7GrAvCXTDicf5aGWgoERbXFiG1EdD",
-    "ApRnQN2HkbCn7W2WWiT2FEKvuKJp9LugRyAE1a9Hdz1",
     # Add more if needed
 ]
 
-seen_transactions = set()
+seen_signatures = set()
 token_to_wallets = defaultdict(set)
-token_sell_alerts = defaultdict(set)
 IGNORED_TOKENS = {"So11111111111111111111111111111111111111112"}
+last_fetched_time = defaultdict(lambda: 0)
+
+
+def log(message):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] {message}")
+
 
 def fetch_transactions(wallet):
-    url = HELIUS_ENDPOINT_TEMPLATE.format(wallet=wallet, api_key=HELIUS_API_KEY)
+    # Only fetch recent transactions using "before" parameter if available
+    url = f"{HELIUS_ENDPOINT}&account={wallet}&limit=20"
     response = requests.get(url)
     if response.status_code != 200:
-        print(f"[!] Error fetching tx for {wallet}: {response.status_code} - {response.text}")
+        log(f"[!] Error fetching tx for {wallet}: {response.status_code} - {response.text}")
         return []
     return response.json()
 
-def extract_token_transfers(tx):
-    return tx.get("tokenTransfers", [])
 
 def extract_token_mints(tx):
     try:
-        token_transfers = extract_token_transfers(tx)
+        token_transfers = tx.get("tokenTransfers", [])
         if not token_transfers:
-            print(f"❌ No tokenTransfers found in tx: {tx.get('signature')}")
+            log(f"❌ No tokenTransfers found in tx: {tx.get('signature')}")
         mints = [t.get("mint") for t in token_transfers if t.get("tokenStandard") == "Fungible"]
         for t in token_transfers:
-            print(f"🔄 Transfer: {t}")
+            log(f"🔄 Transfer: {t}")
         return mints
     except Exception as e:
-        print(f"⚠️ Error parsing tx: {e}")
+        log(f"⚠️ Error parsing tx: {e}")
         return []
+
 
 def send_telegram_alert(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -74,36 +79,32 @@ def send_telegram_alert(message):
     }
     response = requests.post(url, data=data)
     if response.status_code != 200:
-        print(f"[!] Telegram send error: {response.status_code} - {response.text}")
+        log(f"[!] Telegram send error: {response.status_code} - {response.text}")
     else:
-        print("Telegram alert sent.")
+        log("Telegram alert sent.")
 
-def detect_sell(tx, mint, wallet):
-    for transfer in extract_token_transfers(tx):
-        if transfer.get("mint") == mint and transfer.get("fromUserAccount") == wallet:
-            return True
-    return False
 
 def main():
-    print("Starting wallet monitoring...")
+    log("Starting wallet monitoring...")
     while True:
         for wallet in WALLETS:
             transactions = fetch_transactions(wallet)
             for tx in transactions:
                 sig = tx.get("signature")
-                if sig in seen_transactions:
+                block_time = tx.get("timestamp", 0)
+                if sig in seen_signatures or block_time <= last_fetched_time[wallet]:
                     continue
-                seen_transactions.add(sig)
+                seen_signatures.add(sig)
+                last_fetched_time[wallet] = max(last_fetched_time[wallet], block_time)
 
                 mints = extract_token_mints(tx)
                 for mint in mints:
                     if mint in IGNORED_TOKENS:
                         continue
-
+                    if mint not in token_to_wallets:
+                        token_to_wallets[mint] = set()
                     token_to_wallets[mint].add(wallet)
-
-                    # Buy alertt
-                    if len(token_to_wallets[mint]) == 2:
+                    if len(token_to_wallets[mint]) >= 2:
                         dex_url = f"https://dexscreener.com/solana/{mint}"
                         msg = (
                             f"\U0001F6A8 *Token Alert!*\n"
@@ -111,22 +112,11 @@ def main():
                             f"🔹 Token: `{mint}`\n\n"
                             f"🔎 [View on Dexscreener]({dex_url})\n"
                             f"[🛒 Buy with BonkBot](https://t.me/furiosa_bonkbot?start=ref_mqbn6_ca_{mint}) | "
-                            f"[🛒 Trojan Bot](https://t.me/paris_trojanbot?start=r-damxy-{mint})"
+                            f"[🛒 Trojan Bot](https://t.me/solana_trojanbot?start=buy_{mint})"
                         )
                         send_telegram_alert(msg)
+        time.sleep(60)  # Reduced polling frequency
 
-                    # Sell alert
-                    if detect_sell(tx, mint, wallet):
-                        token_sell_alerts[mint].add(wallet)
-                        if len(token_sell_alerts[mint]) == 2:
-                            msg = (
-                                f"\U0001F4C9 *Sell Alert!*\n"
-                                f"Two wallets have sold token: `{mint}`\n"
-                                f"🔎 [View on Dexscreener](https://dexscreener.com/solana/{mint})"
-                            )
-                            send_telegram_alert(msg)
-
-        time.sleep(15)
 
 if __name__ == "__main__":
     main()
