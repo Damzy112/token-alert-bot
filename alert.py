@@ -110,7 +110,7 @@ def main():
                             f"🔹 Token: `{mint}`\n\n"
                             f"🔎 [View on Dexscreener]({dex_url})\n"
                             f"[🛒 Buy with BonkBot](https://t.me/furiosa_bonkbot?start=ref_mqbn6_ca_{mint}) | "
-                            f"[🛒 Trojan Bot](https://t.me/solana_trojanbot?start=buy-{mint})"
+                            f"[🛒 Trojan Bot](https://t.me/paris_trojanbot?start=r-damxy-{mint})"
                         )
                         send_telegram_alert(msg)
 
