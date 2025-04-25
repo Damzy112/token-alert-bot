@@ -102,7 +102,7 @@ def main():
 
                     token_to_wallets[mint].add(wallet)
 
-                    # Buy alert
+                    # Buy alertt
                     if len(token_to_wallets[mint]) == 2:
                         dex_url = f"https://dexscreener.com/solana/{mint}"
                         msg = (
