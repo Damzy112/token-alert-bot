@@ -26,7 +26,7 @@ if missing:
 # Constants
 HELIUS_ENDPOINT_TEMPLATE = "https://api.helius.xyz/v0/addresses/{wallet}/transactions?api-key={api_key}"
 
-# Wallets to monitor
+# Walletts to monitor
 WALLETS = [
     "AjBVnBJzDnsjHjeLTLziHUonvBohDHpjrdPUuW6MVmS2",
     "dATMod1UTXYzvaXji4mBsvXTeAUAC73TNJQAejKS54X",
