@@ -23,8 +23,8 @@ missing = [key for key, value in required_vars.items() if not value]
 if missing:
     raise EnvironmentError(f"Missing required environment variables: {', '.join(missing)}")
 
-# Constants
-HELIUS_ENDPOINT = f"https://api.helius.xyz/v0/transactions?api-key={HELIUS_API_KEY}"
+# Updated Helius endpoint with limit parameter
+HELIUS_ENDPOINT_TEMPLATE = "https://api.helius.xyz/v0/addresses/{wallet}/transactions?limit=20&api-key={api_key}"
 
 # Wallets to monitor
 WALLETS = [
@@ -34,10 +34,9 @@ WALLETS = [
     # Add more if needed
 ]
 
-seen_signatures = set()
+seen_transactions = set()
 token_to_wallets = defaultdict(set)
 IGNORED_TOKENS = {"So11111111111111111111111111111111111111112"}
-last_fetched_time = defaultdict(lambda: 0)
 
 
 def log(message):
@@ -46,8 +45,7 @@ def log(message):
 
 
 def fetch_transactions(wallet):
-    # Only fetch recent transactions using "before" parameter if available
-    url = f"{HELIUS_ENDPOINT}&account={wallet}&limit=20"
+    url = HELIUS_ENDPOINT_TEMPLATE.format(wallet=wallet, api_key=HELIUS_API_KEY)
     response = requests.get(url)
     if response.status_code != 200:
         log(f"[!] Error fetching tx for {wallet}: {response.status_code} - {response.text}")
@@ -91,12 +89,9 @@ def main():
             transactions = fetch_transactions(wallet)
             for tx in transactions:
                 sig = tx.get("signature")
-                block_time = tx.get("timestamp", 0)
-                if sig in seen_signatures or block_time <= last_fetched_time[wallet]:
+                if sig in seen_transactions:
                     continue
-                seen_signatures.add(sig)
-                last_fetched_time[wallet] = max(last_fetched_time[wallet], block_time)
-
+                seen_transactions.add(sig)
                 mints = extract_token_mints(tx)
                 for mint in mints:
                     if mint in IGNORED_TOKENS:
@@ -110,12 +105,12 @@ def main():
                             f"\U0001F6A8 *Token Alert!*\n"
                             f"A watched wallet group just bought:\n\n"
                             f"🔹 Token: `{mint}`\n\n"
-                            f"🔎 [View on Dexscreener]({dex_url})\n"
+                            f"[🔎 View on Dexscreener]({dex_url})\n"
                             f"[🛒 Buy with BonkBot](https://t.me/furiosa_bonkbot?start=ref_mqbn6_ca_{mint}) | "
                             f"[🛒 Trojan Bot](https://t.me/solana_trojanbot?start=buy_{mint})"
                         )
                         send_telegram_alert(msg)
-        time.sleep(60)  # Reduced polling frequency
+        time.sleep(15)
 
 
 if __name__ == "__main__":
