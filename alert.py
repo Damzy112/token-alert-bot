@@ -23,7 +23,7 @@ missing = [key for key, value in required_vars.items() if not value]
 if missing:
     raise EnvironmentError(f"Missing required environment variables: {', '.join(missing)}")
 
-# Updated Helius endpoint with limit parameter
+# Updated Helius endpoint with limitt parameter
 HELIUS_ENDPOINT_TEMPLATE = "https://api.helius.xyz/v0/addresses/{wallet}/transactions?limit=20&api-key={api_key}"
 
 # Wallets to monitor
