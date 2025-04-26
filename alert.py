@@ -31,6 +31,7 @@ WALLETS = [
     "AjBVnBJzDnsjHjeLTLziHUonvBohDHpjrdPUuW6MVmS2",
     "dATMod1UTXYzvaXji4mBsvXTeAUAC73TNJQAejKS54X",
     "86AEJExyjeNNgcp7GrAvCXTDicf5aGWgoERbXFiG1EdD",
+    "fAJKBzdu4fbakmc3dRsN21XAGbdCYuE8QJdyStw9cNQ",
     # Add more if needed
 ]
 
