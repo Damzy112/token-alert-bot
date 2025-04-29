@@ -100,7 +100,7 @@ def main():
                     if mint not in token_to_wallets:
                         token_to_wallets[mint] = set()
                     token_to_wallets[mint].add(wallet)
-                    if len(token_to_wallets[mint]) >= 2:
+                    if len(token_to_wallets[mint]) >= 3:
                         dex_url = f"https://dexscreener.com/solana/{mint}"
                         msg = (
                             f"\U0001F6A8 *Token Alert!*\n"
