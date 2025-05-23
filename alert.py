@@ -37,7 +37,10 @@ WALLETS = [
 
 seen_transactions = set()
 token_to_wallets = defaultdict(set)
-IGNORED_TOKENS = {"So11111111111111111111111111111111111111112"}
+IGNORED_TOKENS = {
+    "So11111111111111111111111111111111111111112",
+    "FZN7QZ8ZUUAxMPfxYEYkH3cXUASzH8EqA6B4tyCL8f1j"  # Ignored token added
+}
 
 
 def log(message):
