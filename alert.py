@@ -28,10 +28,10 @@ HELIUS_ENDPOINT_TEMPLATE = "https://api.helius.xyz/v0/addresses/{wallet}/transac
 
 # Wallets to monitor
 WALLETS = [
-    "EWMx76imQ9G7tQWzgv72CGBv1QJb5vwYabV6WaAYWoYM",
-    "J23qr98GjGJJqKq9CBEnyRhHbmkaVxtTJNNxKu597wsA",
-    "R9veMjTwavSgYmVHCBjgEgn7Z4A11wEBzxPD88q8z4Z",
-    "69mC178vsKytj28yx2UTFHGt4UHVxE5Z9nc6eHfnaGau",
+    "3HyF9wrqUGY1nengD7YYwJV6wagL9zp4E1hRfzdyGusz",
+    "7iZu4GDGRxyky4NyEbycae4yzhH57kPT7W9Kyx6krAYw",
+    "9mNbGs8CVUBWGXeWVVLQBXeimz5wA8KbgekSMcFSMUhj",
+    "AWAfneedgUhn6B4shUJeScCra5e6m8UqZCu7W5vSFPXg",
     # Add more if needed
 ]
 
