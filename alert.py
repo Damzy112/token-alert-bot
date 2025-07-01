@@ -28,25 +28,29 @@ if missing:
 HELIUS_ENDPOINT_TEMPLATE = "https://api.helius.xyz/v0/addresses/{wallet}/transactions?limit=20&api-key={api_key}"
 
 WALLETS = [
-    "HDiqWPz8tzMNeYgsn61CzFhkd7HeAX7HKjFFjMKBq138",
-    "unHEPBuKEQ5qf6JRRi1WZgJ1Pe5nuyCzSCDRyMkAn2X",
-    "2rmJhgCfqWsh8MqUFchUnsv43EDg55mTh9bkYMT4oPHk",
-    "AGzrUzWwHFttUu446C31Pe3USoZMz8CB53mFp6upbhkA",
+    "CBaM2xaPdDdhaopd8dD93LJAvextJoPngdKFz8QFP7JD",
+    "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj",
+    "8yJFWmVTQq69p6VJxGwpzW7ii7c5J9GRAtHCNMMQPydj",
+    "D6zdELhLudUPtEjzsvDjbUB1vZsErPWgvRnvD8rWc8Lg",
     # Add more if needed
 ]
 
 seen_transactions = set()
 token_to_wallets = defaultdict(set)
 IGNORED_TOKENS = {
+    "FZN7QZ8ZUUAxMPfxYEYkH3cXUASzH8EqA6B4tyCL8f1j",
     "So11111111111111111111111111111111111111112",
-    "FZN7QZ8ZUUAxMPfxYEYkH3cXUASzH8EqA6B4tyCL8f1j"
+    "AN2oFJT42rE2XSkFG6HrZ2UmRH6CifzsYWM9Jf1LvX6u"
 }
 
+# Caches with expiry
+metadata_cache = {}  # {token_address: (name, symbol, timestamp)}
+price_cache = {}     # {token_address: (price, timestamp)}
+CACHE_TTL = 300  # 5 minutes
 
 def log(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] {message}")
-
 
 def fetch_transactions(wallet):
     url = HELIUS_ENDPOINT_TEMPLATE.format(wallet=wallet, api_key=HELIUS_API_KEY)
@@ -55,7 +59,6 @@ def fetch_transactions(wallet):
         log(f"[!] Error fetching tx for {wallet}: {response.status_code} - {response.text}")
         return []
     return response.json()
-
 
 def extract_token_mints(tx):
     try:
@@ -70,8 +73,13 @@ def extract_token_mints(tx):
         log(f"⚠️ Error parsing tx: {e}")
         return []
 
-
 def get_token_price(token_address):
+    now = time.time()
+    if token_address in price_cache:
+        price, timestamp = price_cache[token_address]
+        if now - timestamp < CACHE_TTL:
+            return price
+
     try:
         url = f"https://pro-api.solscan.io/v2.0/token/price?address={token_address}"
         headers = {
@@ -81,13 +89,13 @@ def get_token_price(token_address):
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             raw_data = response.json()
-            log(f"Solscan price response for {token_address}: {raw_data}")
             data_list = raw_data.get("data", [])
             if isinstance(data_list, list) and len(data_list) > 0:
                 latest_price_entry = data_list[-1]
                 price = latest_price_entry.get("price")
-                return round(float(price), 6) if price else "N/A"
-            log(f"[!] No valid price data found in list for {token_address}")
+                result = round(float(price), 6) if price else "N/A"
+                price_cache[token_address] = (result, now)
+                return result
             return "N/A"
         else:
             log(f"[!] Solscan price fetch failed for {token_address}: {response.status_code} - {response.text}")
@@ -96,6 +104,33 @@ def get_token_price(token_address):
         log(f"⚠️ Error fetching price from Solscan for {token_address}: {e}")
         return "N/A"
 
+def get_token_metadata(token_address):
+    now = time.time()
+    if token_address in metadata_cache:
+        name, symbol, timestamp = metadata_cache[token_address]
+        if now - timestamp < CACHE_TTL:
+            return name, symbol
+
+    try:
+        url = f"https://pro-api.solscan.io/v2.0/token/meta?address={token_address}"
+        headers = {
+            "accept": "application/json",
+            "token": SOLSCAN_API_KEY
+        }
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            token_info = data.get("data", {})
+            name = token_info.get("name", "Unknown")
+            symbol = token_info.get("symbol", "")
+            metadata_cache[token_address] = (name, symbol, now)
+            return name, symbol
+        else:
+            log(f"[!] Metadata fetch failed for {token_address}: {response.status_code} - {response.text}")
+            return "Unknown", ""
+    except Exception as e:
+        log(f"⚠️ Error fetching metadata from Solscan for {token_address}: {e}")
+        return "Unknown", ""
 
 def send_telegram_alert(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -110,7 +145,6 @@ def send_telegram_alert(message):
         log(f"[!] Telegram send error: {response.status_code} - {response.text}")
     else:
         log("Telegram alert sent.")
-
 
 def main():
     log("Starting wallet monitoring...")
@@ -130,18 +164,19 @@ def main():
                     if len(token_to_wallets[mint]) >= 2:
                         dex_url = f"https://dexscreener.com/solana/{mint}"
                         price = get_token_price(mint)
+                        name, symbol = get_token_metadata(mint)
                         msg = (
                             f"\U0001F6A8 *Token Alert!*\n"
                             f"A watched wallet group just bought:\n\n"
-                            f"🔹 Token: `{mint}`\n"
-                            f"💲 Price: `${price}`\n\n"
+                            f"🔹 Token: *{name}* (`{symbol}`)\n"
+                            f"💲 Price: `${price}`\n"
+                            f"🪙 Address: `{mint}`\n\n"
                             f"[🔎 View on Dexscreener]({dex_url})\n"
                             f"[🛒 Buy with BonkBot](https://t.me/furiosa_bonkbot?start=ref_mqbn6_ca_{mint}) | "
                             f"[🛒 Trojan Bot](https://t.me/solana_trojanbot?start=buy_{mint})"
                         )
                         send_telegram_alert(msg)
         time.sleep(15)
-
 
 if __name__ == "__main__":
     main()
