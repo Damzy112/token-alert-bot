@@ -12,23 +12,23 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 HELIUS_API_KEY = os.getenv("HELIUS_API_KEY")
+SOLSCAN_API_KEY = os.getenv("SOLSCAN_API_KEY")
 
 required_vars = {
     "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN,
     "TELEGRAM_CHAT_ID": TELEGRAM_CHAT_ID,
     "HELIUS_API_KEY": HELIUS_API_KEY,
+    "SOLSCAN_API_KEY": SOLSCAN_API_KEY,
 }
 
 missing = [key for key, value in required_vars.items() if not value]
 if missing:
     raise EnvironmentError(f"Missing required environment variables: {', '.join(missing)}")
 
-# Updated Helius endpoint with limitt parameter
 HELIUS_ENDPOINT_TEMPLATE = "https://api.helius.xyz/v0/addresses/{wallet}/transactions?limit=20&api-key={api_key}"
 
-# Wallets to monitor
 WALLETS = [
-   "HDiqWPz8tzMNeYgsn61CzFhkd7HeAX7HKjFFjMKBq138",
+    "HDiqWPz8tzMNeYgsn61CzFhkd7HeAX7HKjFFjMKBq138",
     "unHEPBuKEQ5qf6JRRi1WZgJ1Pe5nuyCzSCDRyMkAn2X",
     "2rmJhgCfqWsh8MqUFchUnsv43EDg55mTh9bkYMT4oPHk",
     "AGzrUzWwHFttUu446C31Pe3USoZMz8CB53mFp6upbhkA",
@@ -39,7 +39,7 @@ seen_transactions = set()
 token_to_wallets = defaultdict(set)
 IGNORED_TOKENS = {
     "So11111111111111111111111111111111111111112",
-    "FZN7QZ8ZUUAxMPfxYEYkH3cXUASzH8EqA6B4tyCL8f1j"  # Ignored token added
+    "FZN7QZ8ZUUAxMPfxYEYkH3cXUASzH8EqA6B4tyCL8f1j"
 }
 
 
@@ -71,6 +71,32 @@ def extract_token_mints(tx):
         return []
 
 
+def get_token_price(token_address):
+    try:
+        url = f"https://pro-api.solscan.io/v2.0/token/price?address={token_address}"
+        headers = {
+            "accept": "application/json",
+            "token": SOLSCAN_API_KEY
+        }
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            raw_data = response.json()
+            log(f"Solscan price response for {token_address}: {raw_data}")
+            data_list = raw_data.get("data", [])
+            if isinstance(data_list, list) and len(data_list) > 0:
+                latest_price_entry = data_list[-1]
+                price = latest_price_entry.get("price")
+                return round(float(price), 6) if price else "N/A"
+            log(f"[!] No valid price data found in list for {token_address}")
+            return "N/A"
+        else:
+            log(f"[!] Solscan price fetch failed for {token_address}: {response.status_code} - {response.text}")
+            return "N/A"
+    except Exception as e:
+        log(f"⚠️ Error fetching price from Solscan for {token_address}: {e}")
+        return "N/A"
+
+
 def send_telegram_alert(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
@@ -100,15 +126,15 @@ def main():
                 for mint in mints:
                     if mint in IGNORED_TOKENS:
                         continue
-                    if mint not in token_to_wallets:
-                        token_to_wallets[mint] = set()
                     token_to_wallets[mint].add(wallet)
                     if len(token_to_wallets[mint]) >= 2:
                         dex_url = f"https://dexscreener.com/solana/{mint}"
+                        price = get_token_price(mint)
                         msg = (
                             f"\U0001F6A8 *Token Alert!*\n"
                             f"A watched wallet group just bought:\n\n"
-                            f"🔹 Token: `{mint}`\n\n"
+                            f"🔹 Token: `{mint}`\n"
+                            f"💲 Price: `${price}`\n\n"
                             f"[🔎 View on Dexscreener]({dex_url})\n"
                             f"[🛒 Buy with BonkBot](https://t.me/furiosa_bonkbot?start=ref_mqbn6_ca_{mint}) | "
                             f"[🛒 Trojan Bot](https://t.me/solana_trojanbot?start=buy_{mint})"
