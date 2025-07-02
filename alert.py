@@ -10,13 +10,16 @@ from datetime import datetime
 load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+TELEGRAM_CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS")
 HELIUS_API_KEY = os.getenv("HELIUS_API_KEY")
 SOLSCAN_API_KEY = os.getenv("SOLSCAN_API_KEY")
 
+if TELEGRAM_CHAT_IDS:
+    TELEGRAM_CHAT_IDS = [chat_id.strip() for chat_id in TELEGRAM_CHAT_IDS.split(",")]
+
 required_vars = {
     "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN,
-    "TELEGRAM_CHAT_ID": TELEGRAM_CHAT_ID,
+    "TELEGRAM_CHAT_IDS": TELEGRAM_CHAT_IDS,
     "HELIUS_API_KEY": HELIUS_API_KEY,
     "SOLSCAN_API_KEY": SOLSCAN_API_KEY,
 }
@@ -133,18 +136,19 @@ def get_token_metadata(token_address):
         return "Unknown", ""
 
 def send_telegram_alert(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    data = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": False
-    }
-    response = requests.post(url, data=data)
-    if response.status_code != 200:
-        log(f"[!] Telegram send error: {response.status_code} - {response.text}")
-    else:
-        log("Telegram alert sent.")
+    for chat_id in TELEGRAM_CHAT_IDS:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        data = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "Markdown",
+            "disable_web_page_preview": False
+        }
+        response = requests.post(url, data=data)
+        if response.status_code != 200:
+            log(f"[!] Telegram send error for {chat_id}: {response.status_code} - {response.text}")
+        else:
+            log(f"✅ Telegram alert sent to {chat_id}")
 
 def main():
     log("Starting wallet monitoring...")
