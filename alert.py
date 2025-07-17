@@ -44,8 +44,8 @@ WALLET_ALIASES = {
     "65MtrVc5TQP3JcxKHjbkwYmk9QC6wiskEBZvhpe1d3rN": "Dolapo",
     "CBaM2xaPdDdhaopd8dD93LJAvextJoPngdKFz8QFP7JD": "Ezekiel",
     "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj": "Folake",
-    "8yJFWmVTQq69p6VJxGwpzW7ii7c5J9GRAtHCNMMQPydj": "Gbolahan"
-    "D6zdELhLudUPtEjzsvDjbUB1vZsErPWgvRnvD8rWc8Lg": "Henry"
+    "8yJFWmVTQq69p6VJxGwpzW7ii7c5J9GRAtHCNMMQPydj": "Gbolahan",
+    "D6zdELhLudUPtEjzsvDjbUB1vZsErPWgvRnvD8rWc8Lg": "Henry",
 }
 
 seen_transactions = set()
