@@ -26,24 +26,42 @@ if missing:
     raise EnvironmentError(f"Missing required environment variables: {', '.join(missing)}")
 
 WALLETS = [
+    "suqh5sHtr8HyJ7q8scBimULPkPpA557prMG47xCHQfK",
+    "6ghHk323zz5hBFdvXJtdhRS1em5rzTDkEdh7Ch9SGovU",
+    "BtDaZUqHr2mKH5EYQCztuerHBuBEfQNYdquTDtEZp2Ym",
+    "65MtrVc5TQP3JcxKHjbkwYmk9QC6wiskEBZvhpe1d3rN",
     "CBaM2xaPdDdhaopd8dD93LJAvextJoPngdKFz8QFP7JD",
     "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj",
     "8yJFWmVTQq69p6VJxGwpzW7ii7c5J9GRAtHCNMMQPydj",
-    "D6zdELhLudUPtEjzsvDjbUB1vZsErPWgvRnvD8rWc8Lg",
+    "D6zdELhLudUPtEjzsvDjbUB1vZsErPWgvRnvD8rWc8Lg"
+    
 ]
+
+WALLET_ALIASES = {
+    "suqh5sHtr8HyJ7q8scBimULPkPpA557prMG47xCHQfK": "Alaba",
+    "6ghHk323zz5hBFdvXJtdhRS1em5rzTDkEdh7Ch9SGovU": "Benjamin",
+    "BtDaZUqHr2mKH5EYQCztuerHBuBEfQNYdquTDtEZp2Ym": "Caro",
+    "65MtrVc5TQP3JcxKHjbkwYmk9QC6wiskEBZvhpe1d3rN": "Dolapo",
+    "CBaM2xaPdDdhaopd8dD93LJAvextJoPngdKFz8QFP7JD": "Ezekiel",
+    "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj": "Folake",
+    "8yJFWmVTQq69p6VJxGwpzW7ii7c5J9GRAtHCNMMQPydj": "Gbolahan"
+    "D6zdELhLudUPtEjzsvDjbUB1vZsErPWgvRnvD8rWc8Lg": "Henry"
+}
 
 seen_transactions = set()
 token_to_wallets = defaultdict(set)
+wallet_buy_times = {}  # (token_address, wallet): timestamp string
+initial_market_caps = {}  # token_address: (initial_market_cap, timestamp)
 
 IGNORED_TOKENS = {
     "FZN7QZ8ZUUAxMPfxYEYkH3cXUASzH8EqA6B4tyCL8f1j",  # Meteora LP
     "So11111111111111111111111111111111111111111",  # Native SOL
-    "So11111111111111111111111111111111111111112", # Wrapped SOL
+    "So11111111111111111111111111111111111111112",  # Wrapped SOL
     "AN2oFJT42rE2XSkFG6HrZ2UmRH6CifzsYWM9Jf1LvX6u"
 }
 
 metadata_cache = {}  # token_address: (name, symbol, price, market_cap, timestamp)
-CACHE_TTL = 300  # 5 minutes
+CACHE_TTL = 60  # 1 minute
 
 def log(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -188,17 +206,69 @@ def main():
                         continue
 
                     token_to_wallets[mint].add(wallet)
+
+                    # Track buy time per wallet-token pair
+                    key = (mint, wallet)
+                    if key not in wallet_buy_times:
+                        wallet_buy_times[key] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
                     if len(token_to_wallets[mint]) >= 2:
                         name, symbol, price, market_cap = get_token_metadata(mint)
                         dex_url = f"https://dexscreener.com/solana/{mint}"
+                        twitter_url = f"https://twitter.com/search?q={mint}&src=typed_query"
+
+                        # Market cap float conversion for return calculation
+                        try:
+                            current_mc = float(market_cap)
+                        except (ValueError, TypeError):
+                            current_mc = None
+
+                        now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                        return_text = ""
+                        if current_mc is not None:
+                            if mint not in initial_market_caps:
+                                initial_market_caps[mint] = (current_mc, now_str)
+                            else:
+                                initial_mc, first_time = initial_market_caps[mint]
+                                if initial_mc > 0:
+                                    pct_return = ((current_mc - initial_mc) / initial_mc) * 100
+                                    if pct_return > 0:
+                                        return_text = (
+                                            f"\n🟩 *Return Since First Alert:* +*{pct_return:.2f}%*"
+                                            f"\n📅 First Alert: {first_time}"
+                                            f"\n📅 Now: {now_str}"
+                                        )
+                                    elif pct_return < 0:
+                                        return_text = (
+                                            f"\n🟥 *Return Since First Alert:* -*{abs(pct_return):.2f}%*"
+                                            f"\n📅 First Alert: {first_time}"
+                                            f"\n📅 Now: {now_str}"
+                                        )
+                                    else:
+                                        return_text = (
+                                            f"\n🟨 *Return Since First Alert:* *0.00%*"
+                                            f"\n📅 First Alert: {first_time}"
+                                            f"\n📅 Now: {now_str}"
+                                        )
+
+                        # Sort wallets by buy time for this token
+                        wallets_sorted = sorted(
+                            token_to_wallets[mint],
+                            key=lambda w: wallet_buy_times.get((mint, w), "")
+                        )
+                        wallet_list = "\n".join([
+                            f"• {WALLET_ALIASES.get(w, w)}" for w in wallets_sorted
+                        ])
+
                         msg = (
                             f"\U0001F6A8 *Token Alert!*\n"
-                            f"A watched wallet group just bought:\n\n"
+                            f"*{len(token_to_wallets[mint])} watched wallets* have bought this token:\n\n"
                             f"🔹 Token: *{name}* (`{symbol}`)\n"
                             f"💲 Price: `${price}`\n"
-                            f"📊 Market Cap: `${market_cap}`\n"
+                            f"📊 Market Cap: `${market_cap}`{return_text}\n"
                             f"🪙 Address: `{mint}`\n\n"
-                            f"[🔎 View on Dexscreener]({dex_url})\n"
+                            f"👛 Wallets (by time bought):\n{wallet_list}\n\n"
+                            f"[🔎 View on Dexscreener]({dex_url}) | [🐦 Search on Twitter]({twitter_url})\n"
                             f"[🛒 Buy with BonkBot](https://t.me/furiosa_bonkbot?start=ref_mqbn6_ca_{mint}) | "
                             f"[🛒 Trojan Bot](https://t.me/solana_trojanbot?start=buy_{mint})"
                         )
