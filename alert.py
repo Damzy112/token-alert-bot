@@ -212,7 +212,7 @@ def main():
                     if key not in wallet_buy_times:
                         wallet_buy_times[key] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                    if len(token_to_wallets[mint]) >= 2:
+                    if len(token_to_wallets[mint]) >= 3:
                         name, symbol, price, market_cap = get_token_metadata(mint)
                         dex_url = f"https://dexscreener.com/solana/{mint}"
                         twitter_url = f"https://twitter.com/search?q={mint}&src=typed_query"
