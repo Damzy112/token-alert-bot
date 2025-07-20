@@ -61,7 +61,7 @@ IGNORED_TOKENS = {
 }
 
 metadata_cache = {}  # token_address: (name, symbol, price, market_cap, timestamp)
-CACHE_TTL = 60  # 1 minute
+CACHE_TTL = 30  # 30 secs
 
 def log(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
