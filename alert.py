@@ -1,6 +1,9 @@
 import os
 import time
 import requests
+import json
+import threading
+import re
 from dotenv import load_dotenv
 from collections import defaultdict
 from datetime import datetime
@@ -25,6 +28,23 @@ missing = [key for key, value in required_vars.items() if not value]
 if missing:
     raise EnvironmentError(f"Missing required environment variables: {', '.join(missing)}")
 
+# Blacklist file
+BLACKLIST_FILE = "blacklist.json"
+
+def load_blacklist():
+    try:
+        with open(BLACKLIST_FILE, "r") as f:
+            return set(json.load(f))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+
+def save_blacklist(blacklist):
+    with open(BLACKLIST_FILE, "w") as f:
+        json.dump(list(blacklist), f)
+
+blacklisted_tokens = load_blacklist()
+
+# Wallets to track
 WALLETS = [
     "suqh5sHtr8HyJ7q8scBimULPkPpA557prMG47xCHQfK",
     "6ghHk323zz5hBFdvXJtdhRS1em5rzTDkEdh7Ch9SGovU",
@@ -34,7 +54,6 @@ WALLETS = [
     "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj",
     "8yJFWmVTQq69p6VJxGwpzW7ii7c5J9GRAtHCNMMQPydj",
     "D6zdELhLudUPtEjzsvDjbUB1vZsErPWgvRnvD8rWc8Lg"
-    
 ]
 
 WALLET_ALIASES = {
@@ -50,18 +69,18 @@ WALLET_ALIASES = {
 
 seen_transactions = set()
 token_to_wallets = defaultdict(set)
-wallet_buy_times = {}  # (token_address, wallet): timestamp string
-initial_market_caps = {}  # token_address: (initial_market_cap, timestamp)
+wallet_buy_times = {}
+initial_market_caps = {}
 
 IGNORED_TOKENS = {
-    "FZN7QZ8ZUUAxMPfxYEYkH3cXUASzH8EqA6B4tyCL8f1j",  # Meteora LP
-    "So11111111111111111111111111111111111111111",  # Native SOL
-    "So11111111111111111111111111111111111111112",  # Wrapped SOL
+    "FZN7QZ8ZUUAxMPfxYEYkH3cXUASzH8EqA6B4tyCL8f1j",
+    "So11111111111111111111111111111111111111111",
+    "So11111111111111111111111111111111111111112",
     "AN2oFJT42rE2XSkFG6HrZ2UmRH6CifzsYWM9Jf1LvX6u"
 }
 
-metadata_cache = {}  # token_address: (name, symbol, price, market_cap, timestamp)
-CACHE_TTL = 30  # 30 secs
+metadata_cache = {}
+CACHE_TTL = 30
 
 def log(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -75,11 +94,7 @@ def fetch_transactions(wallet):
         f"sort_by=block_time&sort_order=desc&"
         f"page=1&page_size=20"
     )
-    headers = {
-        "accept": "application/json",
-        "token": SOLSCAN_API_KEY
-    }
-
+    headers = {"accept": "application/json", "token": SOLSCAN_API_KEY}
     try:
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
@@ -93,21 +108,14 @@ def fetch_transactions(wallet):
         for tx in transfers:
             sig = tx.get("trans_id")
             mint = tx.get("token_address")
-            flow = tx.get("flow")  # should be 'in' or 'out'
-
+            flow = tx.get("flow")
             if not sig or not mint or flow != "in":
                 continue
-
             parsed_txs.append({
                 "signature": sig,
-                "tokenTransfers": [{
-                    "mint": mint,
-                    "tokenStandard": "Fungible"
-                }]
+                "tokenTransfers": [{"mint": mint, "tokenStandard": "Fungible"}]
             })
-
         return parsed_txs
-
     except Exception as e:
         log(f"⚠️ Solscan SPL transfer fetch error: {e}")
         return []
@@ -115,12 +123,9 @@ def fetch_transactions(wallet):
 def extract_token_mints(tx):
     try:
         token_transfers = tx.get("tokenTransfers", [])
-        if not token_transfers:
-            log(f"❌ No tokenTransfers found in tx: {tx.get('signature')}")
-        mints = [t.get("mint") for t in token_transfers if t.get("tokenStandard") == "Fungible"]
         for t in token_transfers:
             log(f"🔄 Transfer: {t}")
-        return mints
+        return [t.get("mint") for t in token_transfers if t.get("tokenStandard") == "Fungible"]
     except Exception as e:
         log(f"⚠️ Error parsing tx: {e}")
         return []
@@ -132,39 +137,29 @@ def get_token_metadata(token_address):
         if now - timestamp < CACHE_TTL:
             return name, symbol, price, market_cap
 
-    headers = {
-        "accept": "application/json",
-        "token": SOLSCAN_API_KEY
-    }
-
-    # Fetch meta
+    headers = {"accept": "application/json", "token": SOLSCAN_API_KEY}
     name = symbol = "Unknown"
     market_cap = "N/A"
     try:
-        url_meta = f"https://pro-api.solscan.io/v2.0/token/meta?address={token_address}"
-        response_meta = requests.get(url_meta, headers=headers)
+        meta_url = f"https://pro-api.solscan.io/v2.0/token/meta?address={token_address}"
+        response_meta = requests.get(meta_url, headers=headers)
         if response_meta.status_code == 200:
             data = response_meta.json().get("data", {})
             name = data.get("name", "Unknown")
             symbol = data.get("symbol", "")
             market_cap = data.get("market_cap", "N/A")
-        else:
-            log(f"[!] Metadata fetch failed for {token_address}: {response_meta.status_code}")
     except Exception as e:
         log(f"⚠️ Error fetching metadata: {e}")
 
-    # Fetch price
     price = "N/A"
     try:
-        url_price = f"https://pro-api.solscan.io/v2.0/token/price?address={token_address}"
-        response_price = requests.get(url_price, headers=headers)
+        price_url = f"https://pro-api.solscan.io/v2.0/token/price?address={token_address}"
+        response_price = requests.get(price_url, headers=headers)
         if response_price.status_code == 200:
             data_list = response_price.json().get("data", [])
             if isinstance(data_list, list) and data_list:
                 price_entry = data_list[-1]
                 price = round(float(price_entry.get("price", 0)), 8)
-        else:
-            log(f"[!] Price fetch failed for {token_address}: {response_price.status_code}")
     except Exception as e:
         log(f"⚠️ Error fetching price: {e}")
 
@@ -180,11 +175,39 @@ def send_telegram_alert(message):
             "parse_mode": "Markdown",
             "disable_web_page_preview": False
         }
-        response = requests.post(url, data=data)
-        if response.status_code != 200:
-            log(f"[!] Telegram send error for {chat_id}: {response.status_code} - {response.text}")
-        else:
-            log(f"✅ Telegram alert sent to {chat_id}")
+        requests.post(url, data=data)
+
+def listen_for_blacklist_commands():
+    log("📨 Listening for Telegram messages to update blacklist...")
+    offset = None
+    while True:
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+            params = {"timeout": 30}
+            if offset:
+                params["offset"] = offset
+            response = requests.get(url, params=params)
+            data = response.json()
+            for update in data.get("result", []):
+                offset = update["update_id"] + 1
+                msg = update.get("message", {})
+                text = msg.get("text", "").strip()
+                chat_id = str(msg.get("chat", {}).get("id", ""))
+
+                if chat_id not in TELEGRAM_CHAT_IDS:
+                    continue
+
+                if re.fullmatch(r"[A-Za-z0-9]{32,44}", text):
+                    log(f"📥 Received blacklist request for: {text}")
+                    if text in blacklisted_tokens:
+                        send_telegram_alert(f"⚠️ Token already blacklisted:\n`{text}`")
+                    else:
+                        blacklisted_tokens.add(text)
+                        save_blacklist(blacklisted_tokens)
+                        send_telegram_alert(f"✅ Token blacklisted:\n`{text}`")
+        except Exception as e:
+            log(f"⚠️ Error in Telegram listener: {e}")
+        time.sleep(3)
 
 def main():
     log("🔁 Starting wallet monitoring...")
@@ -193,21 +216,16 @@ def main():
             log(f"🔍 Checking wallet: {wallet}")
             transactions = fetch_transactions(wallet)
             log(f"   ↪ Found {len(transactions)} transactions")
-
             for tx in transactions:
                 sig = tx.get("signature")
                 if sig in seen_transactions:
                     continue
                 seen_transactions.add(sig)
-
                 mints = extract_token_mints(tx)
                 for mint in mints:
-                    if mint in IGNORED_TOKENS:
+                    if mint in IGNORED_TOKENS or mint in blacklisted_tokens:
                         continue
-
                     token_to_wallets[mint].add(wallet)
-
-                    # Track buy time per wallet-token pair
                     key = (mint, wallet)
                     if key not in wallet_buy_times:
                         wallet_buy_times[key] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -216,11 +234,9 @@ def main():
                         name, symbol, price, market_cap = get_token_metadata(mint)
                         dex_url = f"https://dexscreener.com/solana/{mint}"
                         twitter_url = f"https://twitter.com/search?q={mint}&src=typed_query"
-
-                        # Market cap float conversion for return calculation
                         try:
                             current_mc = float(market_cap)
-                        except (ValueError, TypeError):
+                        except:
                             current_mc = None
 
                         now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -230,36 +246,19 @@ def main():
                                 initial_market_caps[mint] = (current_mc, now_str)
                             else:
                                 initial_mc, first_time = initial_market_caps[mint]
-                                if initial_mc > 0:
-                                    pct_return = ((current_mc - initial_mc) / initial_mc) * 100
-                                    if pct_return > 0:
-                                        return_text = (
-                                            f"\n🟩 *Return Since First Alert:* +*{pct_return:.2f}%*"
-                                            f"\n📅 First Alert: {first_time}"
-                                            f"\n📅 Now: {now_str}"
-                                        )
-                                    elif pct_return < 0:
-                                        return_text = (
-                                            f"\n🟥 *Return Since First Alert:* -*{abs(pct_return):.2f}%*"
-                                            f"\n📅 First Alert: {first_time}"
-                                            f"\n📅 Now: {now_str}"
-                                        )
-                                    else:
-                                        return_text = (
-                                            f"\n🟨 *Return Since First Alert:* *0.00%*"
-                                            f"\n📅 First Alert: {first_time}"
-                                            f"\n📅 Now: {now_str}"
-                                        )
+                                pct_return = ((current_mc - initial_mc) / initial_mc) * 100
+                                if pct_return > 0:
+                                    return_text = f"\n🟩 *Return Since First Alert:* +*{pct_return:.2f}%*\n📅 First Alert: {first_time}\n📅 Now: {now_str}"
+                                elif pct_return < 0:
+                                    return_text = f"\n🟥 *Return Since First Alert:* -*{abs(pct_return):.2f}%*\n📅 First Alert: {first_time}\n📅 Now: {now_str}"
+                                else:
+                                    return_text = f"\n🟨 *Return Since First Alert:* *0.00%*\n📅 First Alert: {first_time}\n📅 Now: {now_str}"
 
-                        # Sort wallets by buy time for this token
                         wallets_sorted = sorted(
                             token_to_wallets[mint],
                             key=lambda w: wallet_buy_times.get((mint, w), "")
                         )
-                        wallet_list = "\n".join([
-                            f"• {WALLET_ALIASES.get(w, w)}" for w in wallets_sorted
-                        ])
-
+                        wallet_list = "\n".join([f"• {WALLET_ALIASES.get(w, w)}" for w in wallets_sorted])
                         msg = (
                             f"\U0001F6A8 *Token Alert!*\n"
                             f"*{len(token_to_wallets[mint])} watched wallets* have bought this token:\n\n"
@@ -276,4 +275,5 @@ def main():
         time.sleep(15)
 
 if __name__ == "__main__":
+    threading.Thread(target=listen_for_blacklist_commands, daemon=True).start()
     main()
