@@ -53,7 +53,8 @@ WALLETS = [
     "CBaM2xaPdDdhaopd8dD93LJAvextJoPngdKFz8QFP7JD",
     "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj",
     "8yJFWmVTQq69p6VJxGwpzW7ii7c5J9GRAtHCNMMQPydj",
-    "D6zdELhLudUPtEjzsvDjbUB1vZsErPWgvRnvD8rWc8Lg"
+    "5YkZmuaLhrPjFv4vtYE2mcR6J4JEXG1EARGh8YYFo8s4",
+    "Aqw3ke5j7K9BNAAsKKUGDZxjgfsqqFH5q1voRq6Fbg3t"
 ]
 
 WALLET_ALIASES = {
@@ -64,7 +65,8 @@ WALLET_ALIASES = {
     "CBaM2xaPdDdhaopd8dD93LJAvextJoPngdKFz8QFP7JD": "Ezekiel",
     "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj": "Folake",
     "8yJFWmVTQq69p6VJxGwpzW7ii7c5J9GRAtHCNMMQPydj": "Gbolahan",
-    "D6zdELhLudUPtEjzsvDjbUB1vZsErPWgvRnvD8rWc8Lg": "Henry",
+    "5YkZmuaLhrPjFv4vtYE2mcR6J4JEXG1EARGh8YYFo8s4": "Henry",
+    "Aqw3ke5j7K9BNAAsKKUGDZxjgfsqqFH5q1voRq6Fbg3t": "Isaac"
 }
 
 seen_transactions = set()
