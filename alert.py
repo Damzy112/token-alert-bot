@@ -49,24 +49,26 @@ WALLETS = [
     "suqh5sHtr8HyJ7q8scBimULPkPpA557prMG47xCHQfK",
     "6ghHk323zz5hBFdvXJtdhRS1em5rzTDkEdh7Ch9SGovU",
     "BtDaZUqHr2mKH5EYQCztuerHBuBEfQNYdquTDtEZp2Ym",
-    "65MtrVc5TQP3JcxKHjbkwYmk9QC6wiskEBZvhpe1d3rN",
+    "j1oxqtEHFn7rUkdABJLmtVtz5fFmHFs4tCG3fWJnkHX",
     "CBaM2xaPdDdhaopd8dD93LJAvextJoPngdKFz8QFP7JD",
     "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj",
     "8yJFWmVTQq69p6VJxGwpzW7ii7c5J9GRAtHCNMMQPydj",
     "5YkZmuaLhrPjFv4vtYE2mcR6J4JEXG1EARGh8YYFo8s4",
-    "Aqw3ke5j7K9BNAAsKKUGDZxjgfsqqFH5q1voRq6Fbg3t"
+    "Aqw3ke5j7K9BNAAsKKUGDZxjgfsqqFH5q1voRq6Fbg3t",
+    "86AEJExyjeNNgcp7GrAvCXTDicf5aGWgoERbXFiG1EdD"
 ]
 
 WALLET_ALIASES = {
     "suqh5sHtr8HyJ7q8scBimULPkPpA557prMG47xCHQfK": "Alaba",
     "6ghHk323zz5hBFdvXJtdhRS1em5rzTDkEdh7Ch9SGovU": "Benjamin",
     "BtDaZUqHr2mKH5EYQCztuerHBuBEfQNYdquTDtEZp2Ym": "Caro",
-    "65MtrVc5TQP3JcxKHjbkwYmk9QC6wiskEBZvhpe1d3rN": "Dolapo",
+    "j1oxqtEHFn7rUkdABJLmtVtz5fFmHFs4tCG3fWJnkHX": "Dolapo",
     "CBaM2xaPdDdhaopd8dD93LJAvextJoPngdKFz8QFP7JD": "Ezekiel",
     "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj": "Folake",
     "8yJFWmVTQq69p6VJxGwpzW7ii7c5J9GRAtHCNMMQPydj": "Gbolahan",
     "5YkZmuaLhrPjFv4vtYE2mcR6J4JEXG1EARGh8YYFo8s4": "Henry",
     "Aqw3ke5j7K9BNAAsKKUGDZxjgfsqqFH5q1voRq6Fbg3t": "Isaac"
+    "86AEJExyjeNNgcp7GrAvCXTDicf5aGWgoERbXFiG1EdD": "Junior"
 }
 
 seen_transactions = set()
