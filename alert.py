@@ -67,7 +67,7 @@ WALLET_ALIASES = {
     "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj": "Folake",
     "8yJFWmVTQq69p6VJxGwpzW7ii7c5J9GRAtHCNMMQPydj": "Gbolahan",
     "5YkZmuaLhrPjFv4vtYE2mcR6J4JEXG1EARGh8YYFo8s4": "Henry",
-    "Aqw3ke5j7K9BNAAsKKUGDZxjgfsqqFH5q1voRq6Fbg3t": "Isaac"
+    "Aqw3ke5j7K9BNAAsKKUGDZxjgfsqqFH5q1voRq6Fbg3t": "Isaac",
     "86AEJExyjeNNgcp7GrAvCXTDicf5aGWgoERbXFiG1EdD": "Junior"
 }
 
